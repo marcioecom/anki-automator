@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import signal
 import sys
 import tempfile
@@ -43,9 +44,20 @@ def _prompt_choice(ew: llm.EnrichedWord) -> tuple[str, str | None]:
     return "pick", ew.exemplos[idx]
 
 
+def _bold_in_sentence(sentence: str, word: str) -> str:
+    """Wrap occurrences of `word` (case-insensitive, word-boundary) with <b>...</b>.
+
+    Preserves the original casing of the match. Returns the sentence unchanged
+    if the word is not found.
+    """
+    pattern = re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE)
+    return pattern.sub(lambda m: f"<b>{m.group(0)}</b>", sentence)
+
+
 def _make_front_back(sentence: str, ew: llm.EnrichedWord, media_filename: str | None) -> tuple[str, str]:
-    front = sentence + (f" [sound:{media_filename}]" if media_filename else "")
-    back = f"*{ew.palavra}*: {ew.traducao}"
+    bolded = _bold_in_sentence(sentence, ew.palavra)
+    front = bolded + (f" [sound:{media_filename}]" if media_filename else "")
+    back = f"<b>{ew.palavra.capitalize()}</b>: {ew.traducao}"
     return front, back
 
 
