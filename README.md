@@ -7,7 +7,9 @@ CLI que automatiza a etapa de mineracao de palavras do metodo Mairo Vergara: rec
 1. **Anki Desktop** instalado e aberto.
 2. **AnkiConnect** add-on: Anki > Tools > Add-ons > Get Add-ons > codigo `2055492159` > restart do Anki.
 3. **Python 3.11+** e [`uv`](https://docs.astral.sh/uv/).
-4. Uma **chave da API Anthropic** (`ANTHROPIC_API_KEY`).
+4. Pelo menos uma chave de LLM (so a do provider que voce vai usar):
+   - **Groq** (default, free tier): `GROQ_API_KEY` - pegue em https://console.groq.com/keys
+   - **Anthropic** (qualidade maior, pago): `ANTHROPIC_API_KEY`
 
 ## Setup
 
@@ -31,7 +33,14 @@ Linhas em branco sao ignoradas. Linhas mal formatadas sao reportadas no inicio e
 ## Uso
 
 ```bash
+# Default: Groq (free)
 uv run anki-automator --file exemplos/lista_exemplo.txt --deck "Ingles::Mineracao"
+
+# Usando Anthropic (Claude)
+uv run anki-automator --file lista.txt --deck "Ingles::Mineracao" --provider anthropic
+
+# Forcando um modelo especifico
+uv run anki-automator --file lista.txt --provider groq --model llama-3.1-8b-instant
 ```
 
 Flags:
@@ -39,8 +48,11 @@ Flags:
 - `--file` (obrigatorio): caminho do `.txt`
 - `--deck` (default `English::Mining`): deck de destino, criado se nao existir
 - `--note-type` (default `Basic`)
-- `--batch-size` (default `10`): palavras por chamada do Claude
-- `--model` (default `claude-haiku-4-5-20251001`)
+- `--batch-size` (default `10`): palavras por chamada do LLM
+- `--provider` (default `groq`): `groq` ou `anthropic`
+- `--model` (default depende do provider):
+  - `groq`: `llama-3.3-70b-versatile`
+  - `anthropic`: `claude-haiku-4-5-20251001`
 - `--no-resume`: ignora o `.state.json` e comeca do zero
 
 ## Atalhos no loop interativo

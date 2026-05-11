@@ -5,6 +5,7 @@ description = "CLI that turns a numbered English word list into Anki cards via C
 requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.40.0",
+    "groq>=0.11.0",
     "gtts>=2.5.0",
     "requests>=2.32.0",
     "questionary>=2.0.0",

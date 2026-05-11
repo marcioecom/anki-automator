@@ -56,9 +56,20 @@ def main() -> int:
     ap.add_argument("--deck", default="English::Mining")
     ap.add_argument("--note-type", default="Basic")
     ap.add_argument("--batch-size", type=int, default=10)
-    ap.add_argument("--model", default="claude-haiku-4-5-20251001")
+    ap.add_argument(
+        "--provider",
+        choices=["anthropic", "groq"],
+        default="groq",
+        help="LLM provider (default: groq - free tier).",
+    )
+    ap.add_argument(
+        "--model",
+        default=None,
+        help="Override model. Defaults: anthropic=claude-haiku-4-5-20251001, groq=llama-3.3-70b-versatile.",
+    )
     ap.add_argument("--no-resume", action="store_true")
     args = ap.parse_args()
+    model = args.model or llm.DEFAULT_MODELS[args.provider]
 
     try:
         anki_connect.health_check()
@@ -99,8 +110,12 @@ def main() -> int:
 
     signal.signal(signal.SIGINT, _sigint_handler)
 
-    console.print(f"[bold]Enriching {len(pending)} word(s) via Claude...[/bold]")
-    enriched = llm.enrich_words(pending, model=args.model, batch_size=args.batch_size)
+    console.print(
+        f"[bold]Enriching {len(pending)} word(s) via {args.provider} ({model})...[/bold]"
+    )
+    enriched = llm.enrich_words(
+        pending, provider=args.provider, model=model, batch_size=args.batch_size
+    )
     enriched_by_num = {ew.numero: ew for ew in enriched}
 
     media_dir = Path(tempfile.gettempdir()) / "anki-automator-media"
@@ -112,7 +127,7 @@ def main() -> int:
         ew = enriched_by_num.get(word.numero)
         if ew is None:
             console.print(
-                f"[red]Claude did not return data for #{word.numero} '{word.palavra}', skipping.[/red]"
+                f"[red]{args.provider} did not return data for #{word.numero} '{word.palavra}', skipping.[/red]"
             )
             failed += 1
             continue
