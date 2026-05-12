@@ -26,20 +26,29 @@ def _print_word(ew: llm.EnrichedWord) -> None:
 
 def _prompt_choice(ew: llm.EnrichedWord) -> tuple[str, str | None]:
     """Returns (action, sentence). action in {'pick','skip','quit'}."""
-    choices = [f"{i}. {ex}" for i, ex in enumerate(ew.exemplos, start=1)]
-    choices += ["[e] Edit / write custom sentence", "[s] Skip this word", "[q] Save and quit"]
-    answer = questionary.select(f"Pick an example for '{ew.palavra}':", choices=choices).ask()
-    if answer is None or answer.startswith("[q]"):
+    choices: list[questionary.Choice] = [
+        questionary.Choice(title=ex, value=("pick", ex), shortcut_key=str(i))
+        for i, ex in enumerate(ew.exemplos, start=1)
+    ]
+    choices += [
+        questionary.Choice(title="Edit / write custom sentence", value=("edit", None), shortcut_key="e"),
+        questionary.Choice(title="Skip this word", value=("skip", None), shortcut_key="s"),
+        questionary.Choice(title="Save and quit", value=("quit", None), shortcut_key="q"),
+    ]
+    answer = questionary.select(
+        f"Pick an example for '{ew.palavra}':",
+        choices=choices,
+        use_shortcuts=True,
+    ).ask()
+    if answer is None:
         return "quit", None
-    if answer.startswith("[s]"):
-        return "skip", None
-    if answer.startswith("[e]"):
+    action, value = answer
+    if action == "edit":
         custom = questionary.text("Custom sentence:").ask()
         if not custom:
             return "skip", None
         return "pick", custom.strip()
-    idx = int(answer.split(".", 1)[0]) - 1
-    return "pick", ew.exemplos[idx]
+    return action, value
 
 
 def _bold_in_sentence(sentence: str, word: str) -> str:
