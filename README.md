@@ -1,15 +1,15 @@
 # anki-automator
 
-CLI que automatiza a etapa de mineracao de palavras do metodo Mairo Vergara: recebe uma lista numerada em `.txt`, chama o Claude para gerar explicacao/traducao/5 exemplos por palavra, gera audio TTS via Google Translate (`gTTS`) e cria os cards no Anki via AnkiConnect, com revisao interativa e checkpoint para retomar onde parou.
+CLI that automates the word-mining step of the Mairo Vergara English study method: takes a numbered `.txt` word list, calls an LLM (Groq or Anthropic) to produce a Portuguese explanation, translation, and 5 short English example sentences per word, generates Google Translate TTS audio via `gTTS`, and creates Anki cards through AnkiConnect with interactive review and a resumable checkpoint.
 
-## Pre-requisitos
+## Prerequisites
 
-1. **Anki Desktop** instalado e aberto.
-2. **AnkiConnect** add-on: Anki > Tools > Add-ons > Get Add-ons > codigo `2055492159` > restart do Anki.
-3. **Python 3.11+** e [`uv`](https://docs.astral.sh/uv/).
-4. Pelo menos uma chave de LLM (so a do provider que voce vai usar):
-   - **Groq** (default, free tier): `GROQ_API_KEY` - pegue em https://console.groq.com/keys
-   - **Anthropic** (qualidade maior, pago): `ANTHROPIC_API_KEY`
+1. **Anki Desktop** installed and open.
+2. **AnkiConnect** add-on: Anki > Tools > Add-ons > Get Add-ons > code `2055492159` > restart Anki.
+3. **Python 3.11+** and [`uv`](https://docs.astral.sh/uv/).
+4. At least one LLM API key (only the provider you plan to use):
+   - **Groq** (default, free tier): `GROQ_API_KEY` - get one at https://console.groq.com/keys
+   - **Anthropic** (higher quality, paid): `ANTHROPIC_API_KEY`
 
 ## Setup
 
@@ -17,10 +17,10 @@ CLI que automatiza a etapa de mineracao de palavras do metodo Mairo Vergara: rec
 git clone <repo> && cd anki-automator
 uv venv && uv pip install -e ".[dev]"
 cp .env.example .env
-# edite o .env e preencha ANTHROPIC_API_KEY
+# edit .env and fill in GROQ_API_KEY (or ANTHROPIC_API_KEY)
 ```
 
-## Formato da lista
+## Input format
 
 ```
 1. obviously
@@ -28,51 +28,51 @@ cp .env.example .env
 3. considerable (context: "considerable amount of …")
 ```
 
-Linhas em branco sao ignoradas. Linhas mal formatadas sao reportadas no inicio e o script pergunta se voce quer continuar com as validas.
+Blank lines are ignored. Malformed lines are reported up front and the script asks whether to continue with the valid ones.
 
-## Uso
+## Usage
 
 ```bash
-# Default: Groq (free)
-uv run anki-automator --file exemplos/lista_exemplo.txt --deck "Ingles::Mineracao"
+# Default: Groq (free tier)
+uv run anki-automator --file exemplos/lista_exemplo.txt --deck "English::Mining"
 
-# Usando Anthropic (Claude)
-uv run anki-automator --file lista.txt --deck "Ingles::Mineracao" --provider anthropic
+# Using Anthropic (Claude)
+uv run anki-automator --file list.txt --deck "English::Mining" --provider anthropic
 
-# Forcando um modelo especifico
-uv run anki-automator --file lista.txt --provider groq --model llama-3.1-8b-instant
+# Forcing a specific model
+uv run anki-automator --file list.txt --provider groq --model llama-3.1-8b-instant
 ```
 
 Flags:
 
-- `--file` (obrigatorio): caminho do `.txt`
-- `--deck` (default `English::Mining`): deck de destino, criado se nao existir
+- `--file` (required): path to the `.txt` list
+- `--deck` (default `English::Mining`): target deck, created if it does not exist
 - `--note-type` (default `Basic`)
-- `--batch-size` (default `10`): palavras por chamada do LLM
-- `--provider` (default `groq`): `groq` ou `anthropic`
-- `--model` (default depende do provider):
+- `--batch-size` (default `10`): words per LLM call
+- `--provider` (default `groq`): `groq` or `anthropic`
+- `--model` (default depends on provider):
   - `groq`: `llama-3.3-70b-versatile`
   - `anthropic`: `claude-haiku-4-5-20251001`
-- `--no-resume`: ignora o `.state.json` e comeca do zero
+- `--no-resume`: ignore the `.state.json` and start fresh
 
-## Atalhos no loop interativo
+## Interactive loop shortcuts
 
-- `1`-`5`: usa o exemplo correspondente como front do card
-- `e`: digita uma frase custom
-- `s`: pula a palavra (vai pro `skipped`, nao recriada em resume)
-- `q`: salva checkpoint e sai
+- `1`-`5`: use the corresponding example as the card front
+- `e`: type a custom sentence
+- `s`: skip this word (marked as `skipped`, not retried on resume)
+- `q`: save checkpoint and quit
 
-## Formato do card gerado
+## Generated card format
 
-- **Front**: frase em ingles + `[sound:<arquivo>.mp3]`
-- **Back**: `*Palavra*: traducao`
+- **Front**: English sentence with the target word wrapped in `<b>...</b>` + `[sound:<file>.mp3]`
+- **Back**: `<b>Word</b>: translation` (capitalized, bold)
 - **Tag**: `anki-automator`
 
-## Resumibilidade
+## Resumability
 
-A cada palavra processada o script grava `<seu_arquivo>.txt.state.json` ao lado do input. Rode o mesmo comando para continuar de onde parou. Use `--no-resume` para comecar do zero.
+After each processed word the script writes `<your_file>.txt.state.json` next to the input. Re-run the same command to pick up where you stopped. Use `--no-resume` to start from scratch.
 
-## Testes
+## Tests
 
 ```bash
 uv run pytest
