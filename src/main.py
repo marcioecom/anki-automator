@@ -20,10 +20,8 @@ console = Console()
 
 
 def _print_word(ew: llm.EnrichedWord) -> None:
-    body_lines = [f"[bold]{ew.palavra}[/bold]  ([italic]{ew.traducao}[/italic])", "", ew.explicacao, ""]
-    for i, ex in enumerate(ew.exemplos, start=1):
-        body_lines.append(f"  [cyan]{i}[/cyan]. {ex}")
-    console.print(Panel("\n".join(body_lines), title=f"#{ew.numero}", border_style="blue"))
+    body = f"[bold]{ew.palavra}[/bold]  ([italic]{ew.traducao}[/italic])\n\n{ew.explicacao}"
+    console.print(Panel(body, title=f"#{ew.numero}", border_style="blue"))
 
 
 def _prompt_choice(ew: llm.EnrichedWord) -> tuple[str, str | None]:
