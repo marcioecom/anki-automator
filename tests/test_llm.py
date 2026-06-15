@@ -1,5 +1,13 @@
-from src.llm import Provider, _TOOL_PARAMETERS
+from src.llm import Provider, _TOOL_PARAMETERS, _unescape_newlines
 from src.types import EnrichedWordFromLLM
+
+
+def test_unescape_newlines_converts_literal_escape():
+    assert _unescape_newlines("line one\\nline two") == "line one\nline two"
+
+
+def test_unescape_newlines_leaves_real_newlines_intact():
+    assert _unescape_newlines("line one\nline two") == "line one\nline two"
 
 
 def test_tool_schema_matches_model():

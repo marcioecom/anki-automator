@@ -269,6 +269,15 @@ def _call_groq(batch: list[Word], model: str, client: Groq) -> list[dict]:
     )
 
 
+def _unescape_newlines(value: str) -> str:
+    """Turn literal backslash-n sequences into real newlines.
+
+    Some providers return formatted text with escaped line breaks; this keeps
+    the paragraph structure intended by the model.
+    """
+    return value.replace("\\n", "\n")
+
+
 def enrich_words(
     words: list[Word],
     *,
@@ -303,9 +312,9 @@ def enrich_words(
                     numero=item["numero"],
                     palavra=item["palavra"],
                     contexto=contexto,
-                    explicacao=item["explicacao"],
+                    explicacao=_unescape_newlines(item["explicacao"]),
                     traducao=item["traducao"],
-                    exemplos=item["exemplos"],
+                    exemplos=[_unescape_newlines(ex) for ex in item["exemplos"]],
                 )
             )
     return out
