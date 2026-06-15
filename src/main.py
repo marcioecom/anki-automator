@@ -1,8 +1,8 @@
 """CLI entry point: orchestrates parsing -> enrichment -> interactive review -> Anki insert."""
+
 from __future__ import annotations
 
 import argparse
-import re
 import signal
 import sys
 import tempfile
@@ -14,26 +14,33 @@ from rich.console import Console
 from rich.panel import Panel
 
 from src import anki_connect, checkpoint, llm, parser, tts
-from src.checkpoint import CheckpointState
+from src.card import make_front_back
+from src.types import CheckpointState, EnrichedWord
 
 console = Console()
 
 
-def _print_word(ew: llm.EnrichedWord) -> None:
+def _print_word(ew: EnrichedWord) -> None:
     body = f"[bold]{ew.palavra}[/bold]  ([italic]{ew.traducao}[/italic])\n\n{ew.explicacao}"
     console.print(Panel(body, title=f"#{ew.numero}", border_style="blue"))
 
 
-def _prompt_choice(ew: llm.EnrichedWord) -> tuple[str, str | None]:
+def _prompt_choice(ew: EnrichedWord) -> tuple[str, str | None]:
     """Returns (action, sentence). action in {'pick','skip','quit'}."""
     choices: list[questionary.Choice] = [
         questionary.Choice(title=ex, value=("pick", ex), shortcut_key=str(i))
         for i, ex in enumerate(ew.exemplos, start=1)
     ]
     choices += [
-        questionary.Choice(title="Edit / write custom sentence", value=("edit", None), shortcut_key="e"),
-        questionary.Choice(title="Skip this word", value=("skip", None), shortcut_key="s"),
-        questionary.Choice(title="Save and quit", value=("quit", None), shortcut_key="q"),
+        questionary.Choice(
+            title="Edit / write custom sentence", value=("edit", None), shortcut_key="e"
+        ),
+        questionary.Choice(
+            title="Skip this word", value=("skip", None), shortcut_key="s"
+        ),
+        questionary.Choice(
+            title="Save and quit", value=("quit", None), shortcut_key="q"
+        ),
     ]
     answer = questionary.select(
         f"Pick an example for '{ew.palavra}':",
@@ -49,23 +56,6 @@ def _prompt_choice(ew: llm.EnrichedWord) -> tuple[str, str | None]:
             return "skip", None
         return "pick", custom.strip()
     return action, value
-
-
-def _bold_in_sentence(sentence: str, word: str) -> str:
-    """Wrap occurrences of `word` (case-insensitive, word-boundary) with <b>...</b>.
-
-    Preserves the original casing of the match. Returns the sentence unchanged
-    if the word is not found.
-    """
-    pattern = re.compile(rf"\b{re.escape(word)}\b", re.IGNORECASE)
-    return pattern.sub(lambda m: f"<b>{m.group(0)}</b>", sentence)
-
-
-def _make_front_back(sentence: str, ew: llm.EnrichedWord, media_filename: str | None) -> tuple[str, str]:
-    bolded = _bold_in_sentence(sentence, ew.palavra)
-    front = bolded + (f" [sound:{media_filename}]" if media_filename else "")
-    back = f"<b>{ew.palavra.capitalize()}</b>: {ew.traducao}"
-    return front, back
 
 
 def main() -> int:
@@ -100,7 +90,9 @@ def main() -> int:
 
     words, errors = parser.parse_word_list(args.file)
     if errors:
-        console.print(f"[yellow]Warning: {len(errors)} invalid line(s) skipped:[/yellow]")
+        console.print(
+            f"[yellow]Warning: {len(errors)} invalid line(s) skipped:[/yellow]"
+        )
         for err in errors:
             console.print(f"  line {err.line_number}: {err.content!r}")
         if not questionary.confirm("Continue with valid lines?").ask():
@@ -110,14 +102,20 @@ def main() -> int:
         return 1
 
     state_path = checkpoint.checkpoint_path_for(args.file)
-    state: CheckpointState = CheckpointState() if args.no_resume else checkpoint.load(state_path)
+    state: CheckpointState = (
+        CheckpointState() if args.no_resume else checkpoint.load(state_path)
+    )
     if state.processed or state.skipped:
         console.print(
             f"[cyan]Resuming: {len(state.processed)} processed, "
             f"{len(state.skipped)} skipped previously.[/cyan]"
         )
 
-    pending = [w for w in words if w.numero not in state.processed and w.numero not in state.skipped]
+    pending = [
+        w
+        for w in words
+        if w.numero not in state.processed and w.numero not in state.skipped
+    ]
     if not pending:
         console.print("[green]Nothing to do - all words already processed.[/green]")
         return 0
@@ -159,7 +157,8 @@ def main() -> int:
             checkpoint.save(state, state_path)
             skipped += 1
             continue
-        assert sentence is not None
+        if sentence is None:
+            continue
         try:
             mp3_path = tts.generate_mp3(sentence, media_dir)
             media_filename = anki_connect.store_media_file(mp3_path)
@@ -171,7 +170,7 @@ def main() -> int:
                 skipped += 1
                 continue
             media_filename = None
-        front, back = _make_front_back(sentence, ew, media_filename)
+        front, back = make_front_back(sentence, ew, media_filename)
         try:
             note_id = anki_connect.add_note(args.deck, args.note_type, front, back)
         except anki_connect.AnkiConnectError as e:
