@@ -8,25 +8,15 @@ Supports two providers, selected at call time:
 from __future__ import annotations
 
 import json
-from typing import Iterable
+import time
+from typing import Iterable, Literal
 
 from anthropic import Anthropic
 from groq import Groq
-from pydantic import BaseModel, Field
-
-from src.parser import Word
+from src.types import EnrichedWord, EnrichedWordFromLLM, Word
 
 
-Provider = str  # "anthropic" | "groq"
-
-
-class EnrichedWord(BaseModel):
-    numero: int
-    palavra: str
-    contexto: str | None = None
-    explicacao: str
-    traducao: str
-    exemplos: list[str] = Field(min_length=5, max_length=5)
+Provider = Literal["anthropic", "groq"]
 
 
 SYSTEM_PROMPT = """
@@ -171,32 +161,25 @@ Voce DEVE retornar APENAS via a ferramenta `enrich_words`. Nao escreva markdown 
 """
 
 
-# Shared JSON schema (used by both providers; only the wrapper format differs).
-_TOOL_PARAMETERS = {
-    "type": "object",
-    "properties": {
-        "words": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "numero": {"type": "integer"},
-                    "palavra": {"type": "string"},
-                    "explicacao": {"type": "string"},
-                    "traducao": {"type": "string"},
-                    "exemplos": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "minItems": 5,
-                        "maxItems": 5,
-                    },
-                },
-                "required": ["numero", "palavra", "explicacao", "traducao", "exemplos"],
+# Shared JSON schema (derived from EnrichedWordFromLLM model).
+def _build_tool_parameters() -> dict:
+    """Build the JSON schema for the enrich_words tool from EnrichedWordFromLLM."""
+    item_schema = EnrichedWordFromLLM.model_json_schema()
+    item_schema.pop("$schema", None)
+    item_schema.pop("title", None)
+    return {
+        "type": "object",
+        "properties": {
+            "words": {
+                "type": "array",
+                "items": item_schema,
             },
         },
-    },
-    "required": ["words"],
-}
+        "required": ["words"],
+    }
+
+
+_TOOL_PARAMETERS = _build_tool_parameters()
 
 _TOOL_NAME = "enrich_words"
 _TOOL_DESCRIPTION = "Returns enriched data for a batch of English words."
@@ -239,9 +222,10 @@ def _chunks(items: list[Word], n: int) -> Iterable[list[Word]]:
 
 
 def _call_anthropic(batch: list[Word], model: str, client: Anthropic) -> list[dict]:
+    max_tokens = max(4096, len(batch) * 600)
     response = client.messages.create(
         model=model,
-        max_tokens=4096,
+        max_tokens=max_tokens,
         system=[
             {
                 "type": "text",
@@ -260,22 +244,29 @@ def _call_anthropic(batch: list[Word], model: str, client: Anthropic) -> list[di
 
 
 def _call_groq(batch: list[Word], model: str, client: Groq) -> list[dict]:
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": _format_user_message(batch)},
-        ],
-        tools=[_GROQ_TOOL],
-        tool_choice={"type": "function", "function": {"name": _TOOL_NAME}},
-        max_tokens=4096,
+    max_tokens = max(4096, len(batch) * 600)
+    for attempt in range(3):
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": _format_user_message(batch)},
+            ],
+            tools=[_GROQ_TOOL],
+            tool_choice={"type": "function", "function": {"name": _TOOL_NAME}},
+            max_tokens=max_tokens,
+            temperature=0.3,
+        )
+        message = response.choices[0].message
+        if message.tool_calls:
+            args = message.tool_calls[0].function.arguments
+            payload = json.loads(args) if isinstance(args, str) else args
+            return payload["words"]
+        if attempt < 2:
+            time.sleep(2 ** attempt)
+    raise RuntimeError(
+        f"Groq did not return any tool_calls after 3 attempts (model={model}, batch={[w.palavra for w in batch]})"
     )
-    message = response.choices[0].message
-    if not message.tool_calls:
-        raise RuntimeError("Groq did not return any tool_calls")
-    args = message.tool_calls[0].function.arguments
-    payload = json.loads(args) if isinstance(args, str) else args
-    return payload["words"]
 
 
 def enrich_words(
