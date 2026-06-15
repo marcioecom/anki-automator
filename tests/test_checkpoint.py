@@ -2,7 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from src.checkpoint import CheckpointState, checkpoint_path_for, load, save
+from src.checkpoint import checkpoint_path_for, load, save
+from src.types import CheckpointState
 
 
 def test_checkpoint_path_for():

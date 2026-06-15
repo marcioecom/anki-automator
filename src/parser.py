@@ -2,22 +2,9 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 from pathlib import Path
 
-
-@dataclass(frozen=True)
-class Word:
-    numero: int
-    palavra: str
-    contexto: str | None
-
-
-@dataclass(frozen=True)
-class ParseError:
-    line_number: int
-    content: str
-    reason: str
+from src.types import ParseError, Word
 
 
 _LINE_RE = re.compile(

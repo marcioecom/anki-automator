@@ -3,15 +3,9 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, field
 from pathlib import Path
 
-
-@dataclass
-class CheckpointState:
-    processed: set[int] = field(default_factory=set)
-    skipped: set[int] = field(default_factory=set)
-    card_ids: dict[int, int] = field(default_factory=dict)
+from src.types import CheckpointState
 
 
 def checkpoint_path_for(input_path: Path) -> Path:

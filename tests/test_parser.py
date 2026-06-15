@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from src.parser import parse_word_list, Word
+from src.parser import parse_word_list
+from src.types import Word
 
 
 def write(tmp_path: Path, content: str) -> Path:
